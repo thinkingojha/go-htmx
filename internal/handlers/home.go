@@ -1,12 +1,22 @@
 package handlers
 
 import (
-	"fmt"
+	"html/template"
+	"log"
 	"net/http"
+	"path/filepath"
 )
 
-func Home (w http.ResponseWriter, r *http.Request) error {
-	if _, err := fmt.Fprintf(w, "Another attempt at making basic stuff in golang"); err != nil {
+func HomeHandler(w http.ResponseWriter, r *http.Request) error {
+
+	_, err := filepath.Glob("internal/template/home/*.html")
+	if err != nil{
+		log.Fatal(err.Error())
+		return err
+	}
+
+	tmpl := template.Must(template.ParseGlob("internal/template/home/*.html"))
+	if err := tmpl.ExecuteTemplate(w, "index.html", nil); err != nil {
 		return err
 	}
 	return nil

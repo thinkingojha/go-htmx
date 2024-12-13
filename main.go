@@ -1,10 +1,13 @@
 package main
 
 import (
+	"html/template"
 	"log"
 
 	"github.com/thinkingojha/go-htmx/cmd/server"
 )
+
+var templates *template.Template
 
 func main() {
 	s := server.NewServer(":3000")
