@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/thinkingojha/go-htmx/cmd/server"
@@ -10,8 +11,12 @@ import (
 )
 
 func main() {
-
-	if err := utils.ParseTemplates(filepath.Join("internal", "template")); err != nil {
+	execDir, err := os.Executable()
+	if err != nil {
+		log.Fatal(fmt.Errorf(" something went wrong: %w", err))
+	}
+	baseDir, _ := filepath.Split(filepath.Dir(execDir))
+	if err := utils.ParseTemplates(filepath.Join(baseDir, "internal", "template")); err != nil {
 		log.Fatal(fmt.Errorf(" cannot parse templates: %w", err))
 	}
 
