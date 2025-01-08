@@ -21,7 +21,7 @@ func (s *Server) Run() error {
 	r.HandleFunc("/", makeHttpHandlerFunc( handlers.HomeHandler))
 	r.HandleFunc("/experience", makeHttpHandlerFunc(handlers.ExpHandler))
 	r.HandleFunc("/products", makeHttpHandlerFunc(handlers.ProductHandler))
-	r.HandleFunc("/blog", makeHttpHandlerFunc(handlers.HomeHandler))
+	r.HandleFunc("/blog", makeHttpHandlerFunc(handlers.WritingsHandler))
 
 	if err := http.ListenAndServe(s.addrString, r); err != nil {
 		return err
