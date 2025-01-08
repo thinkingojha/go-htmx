@@ -19,6 +19,9 @@ func (s *Server) Run() error {
 	// Routes
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
 	r.HandleFunc("/", makeHttpHandlerFunc( handlers.HomeHandler))
+	r.HandleFunc("/experience", makeHttpHandlerFunc(handlers.ExpHandler))
+	r.HandleFunc("/products", makeHttpHandlerFunc(handlers.ProductHandler))
+	r.HandleFunc("/blog", makeHttpHandlerFunc(handlers.HomeHandler))
 
 	if err := http.ListenAndServe(s.addrString, r); err != nil {
 		return err
