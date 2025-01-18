@@ -12,8 +12,10 @@
 </head>
 
 <body class="bg-slate-50 min-h-screen flex flex-col">
-    <div class="flex-grow max-w-2xl lg:max-w-3xl mx-auto flex flex-col">
+    <div class="mx-auto flex flex-col w-[100%] max-w-2xl lg:max-w-3xl">
         {{ template "header" . }}
+    </div>
+    <div class="flex flex-col mx-auto flex-grow max-w-2xl lg:max-w-3xl">
         <main class="px-4 md:px-2">
             <section class="pb-6 my-6 lg:pb-10 lg:my-8">
             {{ block "content" . }}

@@ -12,4 +12,4 @@ func ProductHandler(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return nil
-}	
+}
