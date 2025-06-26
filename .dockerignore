@@ -1,2 +1,41 @@
-node_modules
+# Development files
+.git
+.gitignore
 README.md
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+bin/
+*.log
+coverage.out
+coverage.html
+
+# Node modules (will be installed in container)
+node_modules/
+
+# Development configs
+config.dev.yaml
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Test files
+*_test.go
+
+# Temporary files
+*.tmp
+*.temp

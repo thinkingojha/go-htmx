@@ -1,0 +1,115 @@
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - vendor
+  skip-files:
+    - ".*\\.pb\\.go$"
+
+linters:
+  enable:
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - dupl
+    - errcheck
+    - exportloopref
+    - exhaustive
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gofmt
+    - goimports
+    - gomnd
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
+    - whitespace
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  golint:
+    min-confidence: 0
+  gocyclo:
+    min-complexity: 15
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  depguard:
+    list-type: blacklist
+  misspell:
+    locale: US
+  unused:
+    check-exported: false
+  unparam:
+    check-exported: false
+  nakedret:
+    max-func-lines: 30
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: false
+  gocritic:
+    enabled-checks:
+      - argOrder
+      - badCond
+      - caseOrder
+      - codegenComment
+      - commentedOutCode
+      - deprecatedComment
+      - dupBranchBody
+      - dupCase
+      - dupSubExpr
+      - elseif
+      - emptyFallthrough
+      - equalFold
+      - flagDeref
+      - flagName
+      - nilValReturn
+      - regexpMust
+      - sloppyLen
+      - switchTrue
+      - typeSwitchVar
+      - underef
+      - unlambda
+      - unslice
+      - valSwap
+      - wrapperFunc
+      - yodaStyleExpr
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - goconst
+        - dupl
+    - path: internal/handlers/
+      linters:
+        - dupl
+  exclude:
+    - abcdef
+  exclude-use-default: false
+  max-issues-per-linter: 50
+  max-same-issues: 3 

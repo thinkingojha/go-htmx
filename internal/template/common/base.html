@@ -6,28 +6,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Personal portfolio and blog of Ankush Ojha - Software Engineer">
+    <meta name="keywords" content="software engineer, golang, web development, portfolio">
+    <meta name="author" content="Ankush Ojha">
+    
+    <!-- Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/static/css/tailwind.css" as="style">
+    <link rel="preload" href="https://unpkg.com/htmx.org@1.9.8" as="script">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/tailwind.css">
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.8"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.8/dist/ext/loading-states.js"></script>
+    
+    <!-- Favicon -->
     <link rel="icon" href="/static/icons/icon2.png" type="image/x-icon"/>
-    <title>ao.dev</title>
+    
+    <title>{{ if .Title }}{{ .Title }} - ao.dev{{ else }}ao.dev{{ end }}</title>
+    
+    <style>
+        /* Loading states for HTMX */
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 300ms ease-in;
+        }
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+        .htmx-request.htmx-indicator {
+            opacity: 1;
+        }
+        
+        /* Smooth transitions */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Error states */
+        .error-message {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+        }
+        
+        /* Loading spinner */
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 
-<body class="bg-slate-50 min-h-screen flex flex-col">
+<body class="bg-slate-50 min-h-screen flex flex-col" hx-ext="loading-states">
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="htmx-indicator fixed top-4 right-4 z-50">
+        <div class="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg">
+            <span class="spinner"></span>
+            Loading...
+        </div>
+    </div>
+    
+    <!-- Error container for HTMX errors -->
+    <div id="error-container" class="fixed top-4 left-4 right-4 z-40" style="display: none;">
+        <div class="error-message max-w-md mx-auto">
+            <strong>Error:</strong> <span id="error-message-text"></span>
+        </div>
+    </div>
+    
     <div class="mx-auto flex flex-col w-[100%] max-w-2xl lg:max-w-3xl">
         {{ template "header" . }}
     </div>
+    
     <div class="flex flex-col mx-auto flex-grow max-w-2xl lg:max-w-3xl">
         <main class="px-4 md:px-2">
-            <section class="pb-6 my-6 lg:pb-10 lg:my-8">
-            {{ block "content" . }}
-                <div>
-                    Something went wrong!!!
-                </div>
-            {{ end }}
-        </section>
+            <section class="pb-6 my-6 lg:pb-10 lg:my-8 fade-in">
+                {{ block "content" . }}
+                    <div class="text-center py-8">
+                        <h1 class="text-2xl font-bold text-slate-900 mb-4">Something went wrong!</h1>
+                        <p class="text-slate-600">Please try refreshing the page.</p>
+                        <button onclick="location.reload()" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            Refresh Page
+                        </button>
+                    </div>
+                {{ end }}
+            </section>
         </main>
     </div>
+    
+    {{ template "footer" . }}
+    
+    <script>
+        // HTMX configuration
+        htmx.config.globalViewTransitions = true;
+        htmx.config.useTemplateFragments = true;
+        
+        // Global error handling
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            const errorContainer = document.getElementById('error-container');
+            const errorText = document.getElementById('error-message-text');
+            errorText.textContent = 'Failed to load content. Please try again.';
+            errorContainer.style.display = 'block';
+            
+            setTimeout(() => {
+                errorContainer.style.display = 'none';
+            }, 5000);
+        });
+        
+        // Hide error on successful requests
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.style.display = 'none';
+        });
+        
+        // Add fade-in class to swapped content
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            evt.detail.target.classList.add('fade-in');
+        });
+    </script>
 </body>
-
-{{ template "footer" . }}
 </html>
 {{ end }}
