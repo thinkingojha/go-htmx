@@ -1,0 +1,146 @@
+id: "go-error-handling-patterns"
+title: "Effective Error Handling Patterns in Go"
+slug: "go-error-handling-patterns"
+excerpt: "explore advanced error handling techniques in Go, including custom error types, error wrapping, and building robust error management systems."
+content: |
+  # Effective Error Handling Patterns in Go
+
+  Error handling is one of Go's most distinctive features. While it might seem verbose at first, Go's explicit error handling leads to more robust and predictable code.
+
+  ## The Go Way of Error Handling
+
+  Go treats errors as values, not exceptions. This fundamental difference shapes how we write and think about error handling:
+
+  ```go
+  result, err := someOperation()
+  if err != nil {
+      return nil, err
+  }
+  ```
+
+  ## Custom Error Types
+
+  Creating custom error types provides better context and enables type-based error handling:
+
+  ```go
+  type ValidationError struct {
+      Field   string
+      Message string
+  }
+
+  func (e ValidationError) Error() string {
+      return fmt.Sprintf("validation failed for %s: %s", e.Field, e.Message)
+  }
+  ```
+
+  ## Error Wrapping
+
+  Go 1.13 introduced error wrapping, allowing you to add context while preserving the original error:
+
+  ```go
+  if err != nil {
+      return fmt.Errorf("failed to process user %d: %w", userID, err)
+  }
+  ```
+
+  ## Sentinel Errors
+
+  Use sentinel errors for well-known error conditions:
+
+  ```go
+  var (
+      ErrUserNotFound = errors.New("user not found")
+      ErrInvalidInput = errors.New("invalid input")
+  )
+
+  func FindUser(id int) (*User, error) {
+      if id <= 0 {
+          return nil, ErrInvalidInput
+      }
+      // ... implementation
+  }
+  ```
+
+  ## Error Handling in HTTP Handlers
+
+  Structure your HTTP handlers to handle errors gracefully:
+
+  ```go
+  func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+      id, err := strconv.Atoi(r.URL.Query().Get("id"))
+      if err != nil {
+          h.respondWithError(w, http.StatusBadRequest, "invalid user ID")
+          return
+      }
+
+      user, err := h.userService.GetUser(id)
+      if errors.Is(err, ErrUserNotFound) {
+          h.respondWithError(w, http.StatusNotFound, "user not found")
+          return
+      }
+      if err != nil {
+          h.respondWithError(w, http.StatusInternalServerError, "internal server error")
+          return
+      }
+
+      h.respondWithJSON(w, http.StatusOK, user)
+  }
+  ```
+
+  ## Best Practices
+
+  ### 1. Be Explicit About Errors
+
+  Don't ignore errors. Handle them explicitly or document why they're being ignored:
+
+  ```go
+  // Good
+  if err != nil {
+      log.Printf("non-critical operation failed: %v", err)
+  }
+
+  // Bad
+  _ = riskyOperation()
+  ```
+
+  ### 2. Provide Context
+
+  Add meaningful context to errors as they bubble up:
+
+  ```go
+  func (s *Service) ProcessOrder(orderID string) error {
+      order, err := s.repo.GetOrder(orderID)
+      if err != nil {
+          return fmt.Errorf("failed to retrieve order %s: %w", orderID, err)
+      }
+      // ... rest of processing
+  }
+  ```
+
+  ### 3. Use Structured Logging
+
+  Log errors with structured information for better debugging:
+
+  ```go
+  log.WithFields(log.Fields{
+      "user_id":  userID,
+      "order_id": orderID,
+      "error":    err,
+  }).Error("failed to process order")
+  ```
+
+  ## Conclusion
+
+  Effective error handling in Go requires thinking about errors as values and building robust error management into your application architecture. By following these patterns, you can create more maintainable and debuggable Go applications.
+author: "Ankush Ojha"
+publish_date: "2024-01-05"
+updated_date: null
+category: "go-development"
+tags: ["go", "error handling", "best practices", "programming", "golang"]
+reading_time: 7
+featured: false
+published: true
+meta:
+  description: "Explore advanced error handling techniques in Go, including custom error types, error wrapping, and building robust error management systems."
+  keywords: ["go error handling", "golang errors", "custom error types", "error wrapping", "go best practices"]
+  og_image: "/static/images/blog/go-error-handling.jpg" 

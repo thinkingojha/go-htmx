@@ -7,10 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/thinkingojha/go-htmx/internal/logger"
 	"github.com/thinkingojha/go-htmx/internal/utils"
 )
 
 func TestMain(m *testing.M) {
+	// Initialize logger for testing
+	logger.Init("debug", false)
+
 	// Setup templates for testing
 	templateDir := filepath.Join("..", "..", "internal", "template")
 	utils.ParseTemplates(templateDir)

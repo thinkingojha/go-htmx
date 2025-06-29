@@ -4,6 +4,8 @@
   "description": "Developer blog/portfolio",
   "main": "index.js",
   "scripts": {
+    "build-css": "tailwindcss -i ./internal/static/css/main.css -o ./internal/static/css/tailwind.css --minify",
+    "dev-css": "tailwindcss -i ./internal/static/css/main.css -o ./internal/static/css/tailwind.css --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

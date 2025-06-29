@@ -52,9 +52,16 @@ func (s *Server) setupRoutes() {
 	// Application routes
 	api.HandleFunc("/", s.makeHTTPHandlerFunc(handlers.HomeHandler)).Methods("GET")
 	api.HandleFunc("/info", s.makeHTTPHandlerFunc(handlers.ExpHandler)).Methods("GET")
+
 	api.HandleFunc("/products", s.makeHTTPHandlerFunc(handlers.ProductHandler)).Methods("GET")
+
+	// Blog routes
 	api.HandleFunc("/blog", s.makeHTTPHandlerFunc(handlers.WritingsHandler)).Methods("GET")
-	api.HandleFunc("/write", s.makeHTTPHandlerFunc(handlers.MarkdownHandler)).Methods("GET")
+	api.HandleFunc("/blog/filter", s.makeHTTPHandlerFunc(handlers.BlogFilterHandler)).Methods("GET")
+	api.HandleFunc("/blog/rss", s.makeHTTPHandlerFunc(handlers.BlogRSSHandler)).Methods("GET")
+	api.HandleFunc("/blog/{slug}", s.makeHTTPHandlerFunc(handlers.BlogPostHandler)).Methods("GET")
+
+	api.HandleFunc("/write", s.makeHTTPHandlerFunc(handlers.MarkdownHandler)).Methods("GET", "POST")
 
 	// Add 404 handler
 	api.NotFoundHandler = http.HandlerFunc(s.notFoundHandler)

@@ -3,9 +3,476 @@
 {{ end }}
 
 {{ define "content" }}
-    <div>
-        <h1>
-            Coming soon !!!!!
-        </h1>
+    {{ if .Post }}
+        {{ template "blog-post-content" . }}
+    {{ else }}
+        {{ template "blog-list-content" . }}
+    {{ end }}
+{{ end }}
+
+{{ define "blog-list-content" }}
+<!-- SEO Meta Tags for Blog List -->
+<meta name="description" content="{{ .Description }}">
+<meta name="keywords" content="{{ range $i, $keyword := .Meta.Keywords }}{{ if $i }}, {{ end }}{{ $keyword }}{{ end }}">
+<meta name="author" content="{{ .Meta.Author }}">
+
+<!-- Open Graph Tags for Blog List -->
+<meta property="og:title" content="{{ .Title }}">
+<meta property="og:description" content="{{ .Description }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ .Meta.SiteURL }}/blog">
+
+<!-- Twitter Card Tags for Blog List -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ .Title }}">
+<meta name="twitter:description" content="{{ .Description }}">
+
+<div class="space-y-12">
+    <!-- Header Section -->
+    <div class="space-y-4">
+        <h1 class="font-bold text-5xl lg:text-6xl mb-4 text-slate-950">{{ .Title }}</h1>
+        <h2 class="text-slate-700 font-normal text-xl lg:text-2xl">{{ .Subtitle }}</h2>
+        <p class="text-slate-700 text-md mt-5 md:mt-8 leading-normal max-w-4xl">{{ .Description }}</p>
     </div>
+
+    <!-- Featured Posts Section -->
+    {{ if .FeaturedPosts }}
+    <section class="space-y-8">
+        <div class="border-b border-slate-200 pb-4">
+            <h3 class="font-semibold text-2xl lg:text-3xl text-slate-950">featured articles</h3>
+        </div>
+        
+        <div class="grid gap-8 lg:grid-cols-2">
+            {{ range .FeaturedPosts }}
+            <article class="group hover:bg-slate-50 -mx-4 px-4 py-6 rounded-lg transition-colors duration-200">
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3 text-sm text-slate-500">
+                        <time datetime="{{ .PublishDate.Format "2006-01-02" }}">{{ .FormatDate }}</time>
+                        <span>•</span>
+                        <span>{{ .ReadingTimeText }}</span>
+                        <span>•</span>
+                        {{ $post := . }}
+                        {{ range $.Categories }}
+                            {{ if eq .Slug $post.Category }}
+                            <span class="inline-block bg-{{ .Color }}-100 text-{{ .Color }}-700 px-2 py-1 rounded-md text-xs font-medium">
+                                {{ .Name }}
+                            </span>
+                            {{ end }}
+                        {{ end }}
+                    </div>
+                    
+                    <h4 class="font-semibold text-xl lg:text-2xl text-slate-950 group-hover:text-slate-800">
+                        <a href="/blog/{{ .Slug }}" class="hover:underline hover:decoration-2">{{ .Title }}</a>
+                    </h4>
+                    
+                    <p class="text-slate-700 leading-relaxed">{{ .GetExcerpt }}</p>
+                    
+                    <div class="flex flex-wrap gap-2">
+                        {{ range .Tags }}
+                        <span class="inline-block bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 hover:border-slate-300 transition-colors duration-150">{{ . }}</span>
+                        {{ end }}
+                    </div>
+                    
+                    <a href="/blog/{{ .Slug }}" class="inline-flex items-center gap-2 text-slate-900 font-medium hover:text-slate-700 transition-colors duration-150">
+                        read more
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                        </svg>
+                    </a>
+                </div>
+            </article>
+            {{ end }}
+        </div>
+    </section>
+    {{ end }}
+
+    <!-- Filter and Search Section -->
+    <section class="space-y-6">
+        <div class="border-b border-slate-200 pb-4">
+            <h3 class="font-semibold text-2xl lg:text-3xl text-slate-950">all articles</h3>
+        </div>
+        
+        <!-- Filter Controls -->
+        <div class="space-y-4">
+            <!-- Category Filter -->
+            <div class="flex flex-wrap gap-3">
+                <button 
+                    hx-get="/blog/filter"
+                    hx-target="#posts-container"
+                    hx-push-url="true"
+                    class="filter-btn px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-medium hover:border-slate-300 hover:bg-slate-50 transition-all duration-150 {{ if not .SelectedCategory }}bg-slate-100{{ end }}">
+                    all categories
+                </button>
+                {{ range .Categories }}
+                <button 
+                    hx-get="/blog/filter?category={{ .Slug }}"
+                    hx-target="#posts-container"
+                    hx-push-url="true"
+                    class="filter-btn px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-medium hover:border-slate-300 hover:bg-slate-50 transition-all duration-150 {{ if eq .Slug $.SelectedCategory }}bg-{{ .Color }}-100 border-{{ .Color }}-300 text-{{ .Color }}-700{{ end }}">
+                    {{ .Name }}
+                </button>
+                {{ end }}
+            </div>
+
+            <!-- Popular Tags -->
+            {{ if .AllTags }}
+            <div class="space-y-2">
+                <h4 class="text-sm font-medium text-slate-900 uppercase tracking-wide">popular tags</h4>
+                <div class="flex flex-wrap gap-2">
+                    {{ range .AllTags }}
+                    <button 
+                        hx-get="/blog/filter?tag={{ . }}"
+                        hx-target="#posts-container"
+                        hx-push-url="true"
+                        class="tag-btn inline-block bg-white border border-slate-200 text-slate-600 text-sm font-medium px-3 py-1.5 rounded-md hover:border-slate-300 hover:shadow-sm transition-all duration-150 {{ if eq . $.SelectedTag }}bg-slate-100 border-slate-400{{ end }}">
+                        {{ . }}
+                    </button>
+                    {{ end }}
+                </div>
+            </div>
+            {{ end }}
+        </div>
+    </section>
+
+    <!-- Posts Container -->
+    <div id="posts-container" class="space-y-8">
+        {{ template "posts-list" . }}
+    </div>
+
+    <!-- RSS Feed Link -->
+    <section class="pt-8 border-t border-slate-200">
+        <div class="space-y-4">
+            <p class="text-slate-700 text-lg leading-relaxed">
+                stay updated with the latest articles and insights
+            </p>
+            <div class="flex flex-wrap gap-4">
+                <a href="/blog/rss" 
+                   class="inline-flex items-center gap-2 bg-orange-500 text-white font-medium px-4 py-2 rounded-md hover:bg-orange-600 transition-colors duration-150">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3.429 2.571c9.444 0 17.143 7.699 17.143 17.143h-4.286c0-7.116-5.741-12.857-12.857-12.857v-4.286zM3.429 9.714c5.714 0 10.286 4.572 10.286 10.286h-4.286c0-3.429-2.571-6-6-6v-4.286zM6.857 16.571c0 1.578-1.279 2.857-2.857 2.857s-2.857-1.279-2.857-2.857 1.279-2.857 2.857-2.857 2.857 1.279 2.857 2.857z"/>
+                    </svg>
+                    RSS feed
+                </a>
+                <a href="mailto:{{ .Meta.Author | lower | replace " " "" }}@gmail.com" 
+                   class="inline-block border border-slate-300 text-slate-700 font-medium px-4 py-2 rounded-md hover:border-slate-400 hover:bg-slate-50 transition-all duration-150">
+                    subscribe via email
+                </a>
+            </div>
+        </div>
+    </section>
+</div>
+{{ end }}
+
+
+<!-- Posts List Template (for HTMX updates) -->
+{{ define "posts-list" }}
+{{ if .Posts }}
+<div class="space-y-8">
+    {{ range .Posts }}
+    <article class="group hover:bg-slate-50 -mx-4 px-4 py-6 rounded-lg transition-colors duration-200 border-l-4 border-transparent hover:border-slate-200">
+        <div class="space-y-4">
+            <div class="flex items-center gap-3 text-sm text-slate-500">
+                <time datetime="{{ .PublishDate.Format "2006-01-02" }}">{{ .FormatDate }}</time>
+                <span>•</span>
+                <span>{{ .ReadingTimeText }}</span>
+                <span>•</span>
+                {{ $post := . }}
+                {{ range $.Categories }}
+                    {{ if eq .Slug $post.Category }}
+                    <span class="inline-block bg-{{ .Color }}-100 text-{{ .Color }}-700 px-2 py-1 rounded-md text-xs font-medium">
+                        {{ .Name }}
+                    </span>
+                    {{ end }}
+                {{ end }}
+            </div>
+            
+            <div class="space-y-2">
+                <h4 class="font-semibold text-xl lg:text-2xl text-slate-950 group-hover:text-slate-800">
+                    <a href="/blog/{{ .Slug }}" class="hover:underline hover:decoration-2">{{ .Title }}</a>
+                </h4>
+                
+                <p class="text-slate-700 leading-relaxed">{{ .GetExcerpt }}</p>
+            </div>
+            
+            <div class="flex flex-wrap gap-2 pt-2">
+                {{ range .Tags }}
+                <button 
+                    hx-get="/blog/filter?tag={{ . }}"
+                    hx-target="#posts-container"
+                    hx-push-url="true"
+                    class="inline-block bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all duration-150">
+                    {{ . }}
+                </button>
+                {{ end }}
+            </div>
+            
+            <a href="/blog/{{ .Slug }}" class="inline-flex items-center gap-2 text-slate-900 font-medium hover:text-slate-700 transition-colors duration-150">
+                read full article
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                </svg>
+            </a>
+        </div>
+    </article>
+    {{ end }}
+</div>
+
+<!-- Pagination -->
+{{ if gt .TotalPages 1 }}
+<div class="flex justify-center items-center space-x-4 pt-8">
+    {{ if gt .CurrentPage 1 }}
+    <button 
+        hx-get="/blog/filter?page={{ sub .CurrentPage 1 }}{{ if .SelectedTag }}&tag={{ .SelectedTag }}{{ end }}{{ if .SelectedCategory }}&category={{ .SelectedCategory }}{{ end }}"
+        hx-target="#posts-container"
+        hx-push-url="true"
+        class="flex items-center gap-2 px-4 py-2 text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50 transition-colors duration-150">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+        previous
+    </button>
+    {{ end }}
+    
+    <span class="text-slate-600">
+        page {{ .CurrentPage }} of {{ .TotalPages }}
+    </span>
+    
+    {{ if lt .CurrentPage .TotalPages }}
+    <button 
+        hx-get="/blog/filter?page={{ add .CurrentPage 1 }}{{ if .SelectedTag }}&tag={{ .SelectedTag }}{{ end }}{{ if .SelectedCategory }}&category={{ .SelectedCategory }}{{ end }}"
+        hx-target="#posts-container"
+        hx-push-url="true"
+        class="flex items-center gap-2 px-4 py-2 text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50 transition-colors duration-150">
+        next
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+    </button>
+    {{ end }}
+</div>
+{{ end }}
+
+{{ else }}
+<div class="text-center py-12">
+    <div class="space-y-4">
+        <svg class="w-16 h-16 text-slate-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <h3 class="text-xl font-medium text-slate-900">no articles found</h3>
+        <p class="text-slate-600">try adjusting your filters or check back later for new content.</p>
+        <button 
+            hx-get="/blog/filter"
+            hx-target="#posts-container"
+            hx-push-url="true"
+            class="inline-block bg-slate-900 text-white font-medium px-4 py-2 rounded-md hover:bg-slate-800 transition-colors duration-150">
+            show all articles
+        </button>
+    </div>
+</div>
+{{ end }}
+{{ end }}
+
+
+{{ define "blog-post-content" }}
+<!-- SEO Meta Tags -->
+<meta name="description" content="{{ .Post.Meta.Description }}">
+<meta name="keywords" content="{{ range $i, $keyword := .Post.Meta.Keywords }}{{ if $i }}, {{ end }}{{ $keyword }}{{ end }}">
+<meta name="author" content="{{ .Post.Author }}">
+
+<!-- Open Graph Tags -->
+<meta property="og:title" content="{{ .Post.Title }}">
+<meta property="og:description" content="{{ .Post.Meta.Description }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ .Meta.SiteURL }}/blog/{{ .Post.Slug }}">
+{{ if .Post.Meta.OGImage }}
+<meta property="og:image" content="{{ .Post.Meta.OGImage }}">
+{{ end }}
+
+<!-- Article specific meta -->
+<meta property="article:author" content="{{ .Post.Author }}">
+<meta property="article:published_time" content="{{ .Post.PublishDate.Format "2006-01-02T15:04:05Z07:00" }}">
+{{ if .Post.UpdatedDate }}
+<meta property="article:modified_time" content="{{ .Post.UpdatedDate.Format "2006-01-02T15:04:05Z07:00" }}">
+{{ end }}
+{{ range .Post.Tags }}
+<meta property="article:tag" content="{{ . }}">
+{{ end }}
+
+<!-- Twitter Card Tags -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ .Post.Title }}">
+<meta name="twitter:description" content="{{ .Post.Meta.Description }}">
+{{ if .Post.Meta.OGImage }}
+<meta name="twitter:image" content="{{ .Post.Meta.OGImage }}">
+{{ end }}
+
+<!-- Structured Data for SEO -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "{{ .Post.Title }}",
+  "description": "{{ .Post.Meta.Description }}",
+  "author": {
+    "@type": "Person",
+    "name": "{{ .Post.Author }}"
+  },
+  "datePublished": "{{ .Post.PublishDate.Format "2006-01-02T15:04:05Z07:00" }}",
+  {{ if .Post.UpdatedDate }}
+  "dateModified": "{{ .Post.UpdatedDate.Format "2006-01-02T15:04:05Z07:00" }}",
+  {{ end }}
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "{{ .Meta.SiteURL }}/blog/{{ .Post.Slug }}"
+  },
+  "publisher": {
+    "@type": "Person",
+    "name": "{{ .Post.Author }}"
+  }
+}
+</script>
+
+<div class="max-w-4xl mx-auto space-y-8">
+    <!-- Navigation breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-slate-500">
+        <a href="/" class="hover:text-slate-700 transition-colors duration-150">home</a>
+        <span>/</span>
+        <a href="/blog" class="hover:text-slate-700 transition-colors duration-150">blog</a>
+        <span>/</span>
+        <span class="text-slate-700">{{ truncate .Post.Title 30 }}</span>
+    </nav>
+
+    <!-- Article Header -->
+    <header class="space-y-6">
+        <!-- Category and meta info -->
+        <div class="flex flex-wrap items-center gap-4 text-sm">
+            {{ range .Categories }}
+                {{ if eq .Slug $.Post.Category }}
+                <span class="inline-block bg-{{ .Color }}-100 text-{{ .Color }}-700 px-3 py-1.5 rounded-md font-medium">
+                    {{ .Name }}
+                </span>
+                {{ end }}
+            {{ end }}
+            <time datetime="{{ .Post.PublishDate.Format "2006-01-02" }}" class="text-slate-500">
+                {{ .Post.FormatDate }}
+            </time>
+            <span class="text-slate-500">{{ .Post.ReadingTimeText }}</span>
+            {{ if .Post.UpdatedDate }}
+            <span class="text-slate-500" title="Last updated: {{ .Post.UpdatedDate.Format "Jan 2, 2006" }}">
+                updated {{ .Post.UpdatedDate.Format "Jan 2, 2006" }}
+            </span>
+            {{ end }}
+        </div>
+
+        <!-- Title -->
+        <h1 class="font-bold text-4xl lg:text-5xl text-slate-950 leading-tight">{{ .Post.Title }}</h1>
+        
+        <!-- Excerpt -->
+        {{ if .Post.Excerpt }}
+        <p class="text-xl text-slate-700 leading-relaxed">{{ .Post.Excerpt }}</p>
+        {{ end }}
+
+        <!-- Author and sharing -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-slate-200">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
+                    <span class="text-slate-600 font-semibold text-sm">{{ substr .Post.Author 0 2 | upper }}</span>
+                </div>
+                <div>
+                    <p class="font-medium text-slate-900">{{ .Post.Author }}</p>
+                    <p class="text-sm text-slate-500">software engineer</p>
+                </div>
+            </div>
+            
+            <!-- Share buttons -->
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-slate-500">share:</span>
+                <a href="https://twitter.com/intent/tweet?text={{ .Post.Title | urlquery }}&url={{ .Meta.SiteURL }}/blog/{{ .Post.Slug | urlquery }}" 
+                   target="_blank"
+                   class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-600 transition-colors duration-150">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+                    </svg>
+                </a>
+                <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ .Meta.SiteURL }}/blog/{{ .Post.Slug | urlquery }}" 
+                   target="_blank"
+                   class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-600 transition-colors duration-150">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    </svg>
+                </a>
+                <button onclick="copyToClipboard('{{ .Meta.SiteURL }}/blog/{{ .Post.Slug }}')"
+                        class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors duration-150"
+                        title="Copy link">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Article Content -->
+    <article class="prose prose-slate max-w-none">
+        <div class="blog-content">
+            {{ .Post.Content | markdownify }}
+        </div>
+    </article>
+
+    <!-- Tags Section -->
+    {{ if .Post.Tags }}
+    <section class="space-y-4 pt-8 border-t border-slate-200">
+        <h3 class="text-sm font-medium text-slate-900 uppercase tracking-wide">tags</h3>
+        <div class="flex flex-wrap gap-2">
+            {{ range .Post.Tags }}
+            <a href="/blog?tag={{ . | urlquery }}" 
+               class="inline-block bg-slate-100 text-slate-700 text-sm font-medium px-3 py-1.5 rounded-md border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all duration-150">
+                {{ . }}
+            </a>
+            {{ end }}
+        </div>
+    </section>
+    {{ end }}
+
+    <!-- Related Posts -->
+    {{ if .RelatedPosts }}
+    <section class="space-y-6 pt-8 border-t border-slate-200">
+        <h3 class="font-semibold text-2xl text-slate-950">related articles</h3>
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {{ range .RelatedPosts }}
+            <article class="group hover:bg-slate-50 -mx-2 px-2 py-4 rounded-lg transition-colors duration-200">
+                <div class="space-y-3">
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <time datetime="{{ .PublishDate.Format "2006-01-02" }}">{{ .FormatDate }}</time>
+                        <span>•</span>
+                        <span>{{ .ReadingTimeText }}</span>
+                    </div>
+                    
+                    <h4 class="font-medium text-lg text-slate-950 group-hover:text-slate-800">
+                        <a href="/blog/{{ .Slug }}" class="hover:underline hover:decoration-2">{{ .Title }}</a>
+                    </h4>
+                    
+                    <p class="text-slate-700 text-sm leading-relaxed line-clamp-2">{{ .GetExcerpt | truncate 120 }}</p>
+                </div>
+            </article>
+            {{ end }}
+        </div>
+    </section>
+    {{ end }}
+
+    <!-- Navigation to previous/next posts -->
+    <section class="flex justify-between items-center pt-8 border-t border-slate-200">
+        <a href="/blog" 
+           class="inline-flex items-center gap-2 text-slate-700 font-medium hover:text-slate-900 transition-colors duration-150">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            back to blog
+        </a>
+        
+        <div class="text-sm text-slate-500">
+            <a href="/blog/rss" class="hover:text-slate-700 transition-colors duration-150">RSS feed</a>
+        </div>
+    </section>
+</div>
 {{ end }}

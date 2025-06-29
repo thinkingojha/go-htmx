@@ -13,36 +13,30 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags='-w -s -extldflags "-static"' \
-    -a -installsuffix cgo \
-    -o gohtmx main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o gohtmx main.go
 
 # Tailwind CSS builder stage
 FROM node:22.12.0-alpine AS tailwind-builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 COPY tailwind.config.js ./
 COPY ./internal/static/css ./internal/static/css
 COPY ./internal/template ./internal/template
 
 # Build Tailwind CSS
-RUN npx tailwindcss build ./internal/static/css/main.css -o ./internal/static/css/tailwind.css --minify
+RUN npm run build-css
 
 # Final production stage
-FROM scratch
+FROM alpine:latest
 
-# Copy ca-certificates for HTTPS requests
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Install ca-certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates
 
 # Copy timezone data
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-
-# Create non-root user
-COPY --from=builder /etc/passwd /etc/passwd
 
 # Copy application binary
 COPY --from=builder /app/gohtmx /gohtmx
@@ -51,21 +45,17 @@ COPY --from=builder /app/gohtmx /gohtmx
 COPY --from=tailwind-builder /app/internal/static /internal/static
 COPY --from=builder /app/internal/template /internal/template
 
-# Copy configuration files
-COPY config.yaml /config.yaml
+# Copy configuration files and blog content
+COPY config.production.yaml /config
+COPY blogs /blogs
+COPY experience.yaml /experience.yaml
 
 # Create non-root user for security
-USER nobody
+RUN adduser -D -s /bin/sh appuser
+USER appuser
 
 # Expose port
 EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD ["/gohtmx", "--health-check"] || exit 1
-
-# Set environment to production
-ENV GOHTMX_APP_ENVIRONMENT=production
 
 # Run the application
 CMD ["/gohtmx"]

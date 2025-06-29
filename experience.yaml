@@ -1,0 +1,60 @@
+title: "professional journey"
+subtitle: "building impactful solutions across diverse technologies"
+summary: "with 3+ years of industry experience and 2+ years specializing in Go development, I've worked on transforming marketing analytics, digital procurement solutions, and scalable web applications."
+
+experiences:
+  - company: "Nielsen"
+    position: "Software Engineer"
+    location: "Remote, India"
+    start_date: "2023-06-01"
+    end_date: null  # null means current position
+    description: "transforming marketing analytics to make them smarter and more efficient, working on data-driven solutions that help brands understand consumer behavior."
+    highlights:
+      - "Built scalable microservices handling millions of data points daily"
+      - "Improved system performance by 40% through optimization techniques"
+      - "Led a team of 3 developers on a critical analytics platform"
+      - "Implemented real-time data processing pipelines using Go and Apache Kafka"
+    skills: ["Go", "Kubernetes", "Apache Kafka", "PostgreSQL", "Redis", "Docker"]
+    website: "https://www.nielsen.com"
+
+  - company: "Simfoni"
+    position: "Backend Developer"
+    location: "New Delhi, India"
+    start_date: "2021-08-01"
+    end_date: "2023-05-31"
+    description: "enhanced digital tail-spend management capabilities, developing solutions that helped organizations optimize their procurement processes."
+    highlights:
+      - "Developed RESTful APIs serving 10,000+ daily active users"
+      - "Reduced API response time by 60% through database optimization"
+      - "Implemented automated testing pipeline reducing bugs by 80%"
+      - "Built integration with 15+ third-party procurement systems"
+    skills: ["Go", "Python", "MySQL", "REST APIs", "AWS", "Jenkins"]
+    website: "https://simfoni.com"
+
+education:
+  - institution: "Delhi Technological University"
+    degree: "Bachelor of Technology"
+    field: "Computer Science Engineering"
+    start_date: "2017-08-01"
+    end_date: "2021-06-30"
+    location: "New Delhi, India"
+    details:
+      - "Graduated with First Class Honours"
+      - "Active member of coding society and tech clubs"
+      - "Led multiple hackathon teams to victory"
+
+skills:
+  - category: "Programming Languages"
+    items: ["Go", "Python", "JavaScript", "TypeScript", "Java", "C++"]
+  
+  - category: "Backend Technologies"
+    items: ["REST APIs", "GraphQL", "gRPC", "Microservices", "Message Queues"]
+  
+  - category: "Databases"
+    items: ["PostgreSQL", "MySQL", "Redis", "MongoDB", "InfluxDB"]
+  
+  - category: "Cloud & DevOps"
+    items: ["AWS", "Docker", "Kubernetes", "Jenkins", "Terraform", "Prometheus"]
+  
+  - category: "Frontend"
+    items: ["HTMX", "React", "TailwindCSS", "HTML5", "CSS3"] 

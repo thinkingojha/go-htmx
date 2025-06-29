@@ -1,0 +1,46 @@
+title: "thoughts & insights"
+subtitle: "exploring technology, engineering practices, and industry trends"
+description: "a collection of articles covering software engineering, go development, system design, and personal learnings from building scalable applications."
+
+# SEO and metadata
+meta:
+  keywords: ["software engineering", "golang", "web development", "system design", "backend", "microservices"]
+  author: "Ankush Ojha"
+  site_url: "https://yoursite.com"
+
+# Blog categories for organization
+categories:
+  - name: "Engineering"
+    slug: "engineering"
+    description: "Technical deep-dives and engineering practices"
+    color: "blue"
+  
+  - name: "Go Development"
+    slug: "go-development"
+    description: "Go programming language insights and best practices"
+    color: "cyan"
+  
+  - name: "System Design"
+    slug: "system-design"
+    description: "Architecture patterns and scalable system designs"
+    color: "purple"
+  
+  - name: "Career"
+    slug: "career"
+    description: "Professional growth and industry insights"
+    color: "green"
+
+# Archive configuration
+archive:
+  posts_per_page: 10
+  sort_by: "publish_date" # publish_date, updated_date, title
+  sort_order: "desc" # asc, desc
+
+# RSS feed configuration
+rss:
+  enabled: true
+  title: "Ankush Ojha - Blog"
+  description: "Software engineering insights and technical articles"
+  link: "https://yoursite.com/blog"
+  language: "en-us"
+  copyright: "© 2024 Ankush Ojha" 
