@@ -1,0 +1,48 @@
+# Traefik configuration for HTTP-only deployment (no SSL)
+api:
+  dashboard: true
+  debug: false
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    pollInterval: "30s"
+  file:
+    filename: /config/dynamic.yml
+    watch: false
+
+# Global defaults - optimized for small VPS
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+serversTransport:
+  insecureSkipVerify: true
+  maxIdleConnsPerHost: 10
+
+log:
+  level: INFO
+
+# Access logging
+accessLog:
+  filePath: "/data/access.log"
+  bufferingSize: 50
+  filters:
+    statusCodes: ["400-599"]  # Only log errors
+    minDuration: "1s"
+
+# Connection timeouts for small VPS
+entryPoints:
+  web:
+    transport:
+      lifeCycle:
+        graceTimeOut: "10s"
+      respondingTimeouts:
+        readTimeout: "30s"
+        writeTimeout: "30s"
+        idleTimeout: "60s" 

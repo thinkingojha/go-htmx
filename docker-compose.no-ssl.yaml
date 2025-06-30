@@ -1,0 +1,90 @@
+version: '3.8'
+
+networks:
+  traefik:
+    external: false
+
+services:
+  traefik:
+    image: traefik:v3.0-alpine
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "8080:8080"  # Dashboard for monitoring
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.no-ssl.yml:/traefik.yml:ro
+      - ./traefik/config:/config:ro
+      - ./traefik/data:/data
+    networks:
+      - traefik
+    # Resource limits for 1GB VPS
+    deploy:
+      resources:
+        limits:
+          memory: 120M
+          cpus: '0.4'
+        reservations:
+          memory: 60M
+          cpus: '0.2'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-auth"
+      - "traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$2y$$10$$z7UdGJzEJkjQD7H.xO7eje8wrODYLWyOmF8Z8Cg5nHWMzW8XqmM.e"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - GOHTMX_APP_ENVIRONMENT=production
+      - GOHTMX_SERVER_HOST=0.0.0.0
+      - GOHTMX_SERVER_PORT=8080
+      # Go runtime optimizations
+      - GOGC=100
+      - GOMEMLIMIT=200MiB
+    volumes:
+      - ./config.yaml:/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 30s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M
+    networks:
+      - traefik
+    # Resource limits for 1GB VPS
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+          cpus: '0.8'
+        reservations:
+          memory: 100M
+          cpus: '0.3'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.app.entrypoints=web"
+      - "traefik.http.routers.app.middlewares=secure-headers,rate-limit"
+      - "traefik.http.services.app.loadbalancer.server.port=8080"
+      # Security headers (without HTTPS-specific ones)
+      - "traefik.http.middlewares.secure-headers.headers.framedeny=true"
+      - "traefik.http.middlewares.secure-headers.headers.contenttypenosniff=true"
+      - "traefik.http.middlewares.secure-headers.headers.browserxssfilter=true"
+      - "traefik.http.middlewares.secure-headers.headers.referrerpolicy=strict-origin-when-cross-origin"
+      # Rate limiting
+      - "traefik.http.middlewares.rate-limit.ratelimit.average=100"
+      - "traefik.http.middlewares.rate-limit.ratelimit.burst=50" 
