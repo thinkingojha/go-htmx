@@ -1,12 +1,10 @@
-version: '3.8'
-
 networks:
   traefik:
     external: false
 
 services:
   traefik:
-    image: traefik:v3.0-alpine
+    image: traefik:v3.0
     container_name: traefik
     restart: unless-stopped
     security_opt:

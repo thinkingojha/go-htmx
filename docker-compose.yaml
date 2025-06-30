@@ -1,12 +1,10 @@
-version: '3.8'
-
 networks:
   traefik:
     external: false
 
 services:
   traefik:
-    image: traefik:v3.0-alpine
+    image: traefik:v3.0
     container_name: traefik
     restart: unless-stopped
     security_opt:
@@ -21,15 +19,11 @@ services:
       - ./traefik/data:/data
     networks:
       - traefik
-    # Resource limits for small VPS
+    # Simplified resource limits for compatibility
     deploy:
       resources:
         limits:
           memory: 150M
-          cpus: '0.5'
-        reservations:
-          memory: 80M
-          cpus: '0.2'
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
@@ -37,7 +31,7 @@ services:
       - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=dashboard-auth"
-      - "traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$2y$$10$$z7UdGJzEJkjQD7H.xO7eje8wrODYLWyOmF8Z8Cg5nHWMzW8XqmM.e"
+      - "traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_BASIC_AUTH}"
 
   app:
     build:
@@ -66,15 +60,11 @@ services:
       - /tmp:size=10M
     networks:
       - traefik
-    # Resource limits for small VPS
+    # Simplified resource limits for compatibility
     deploy:
       resources:
         limits:
           memory: 250M
-          cpus: '0.8'
-        reservations:
-          memory: 100M
-          cpus: '0.3'
     labels:
       - "traefik.enable=true"
       # HTTP to HTTPS redirect

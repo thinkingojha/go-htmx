@@ -1,4 +1,4 @@
-# Traefik configuration for HTTP-only deployment (no SSL)
+# Traefik v3.0 configuration for HTTP-only deployment (no SSL)
 api:
   dashboard: true
   debug: false
@@ -6,12 +6,19 @@ api:
 entryPoints:
   web:
     address: ":80"
+    transport:
+      lifeCycle:
+        graceTimeOut: "10s"
+      respondingTimeouts:
+        readTimeout: "30s"
+        writeTimeout: "30s"
+        idleTimeout: "60s"
 
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    pollInterval: "30s"
+    watch: true
   file:
     filename: /config/dynamic.yml
     watch: false
@@ -34,15 +41,4 @@ accessLog:
   bufferingSize: 50
   filters:
     statusCodes: ["400-599"]  # Only log errors
-    minDuration: "1s"
-
-# Connection timeouts for small VPS
-entryPoints:
-  web:
-    transport:
-      lifeCycle:
-        graceTimeOut: "10s"
-      respondingTimeouts:
-        readTimeout: "30s"
-        writeTimeout: "30s"
-        idleTimeout: "60s" 
+    minDuration: "1s" 

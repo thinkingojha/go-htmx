@@ -1,4 +1,4 @@
-# Traefik configuration with Let's Encrypt HTTP challenge (no API tokens needed)
+# Traefik v3.0 configuration with Let's Encrypt HTTP challenge
 api:
   dashboard: true
   debug: false
@@ -7,19 +7,33 @@ entryPoints:
   web:
     address: ":80"
     # Don't redirect here - let individual services handle it
+    transport:
+      lifeCycle:
+        graceTimeOut: "10s"
+      respondingTimeouts:
+        readTimeout: "30s"
+        writeTimeout: "30s"
+        idleTimeout: "60s"
   websecure:
     address: ":443"
+    transport:
+      lifeCycle:
+        graceTimeOut: "10s"
+      respondingTimeouts:
+        readTimeout: "30s"
+        writeTimeout: "30s"
+        idleTimeout: "60s"
 
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    pollInterval: "30s"
+    watch: true
 
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: your-email@example.com  # Change this to your email
+      email: ojhaankush292@gmail.com  # Change this to your email
       storage: /data/acme.json
       # HTTP challenge - works with any domain provider
       httpChallenge:
@@ -43,23 +57,4 @@ accessLog:
   bufferingSize: 50
   filters:
     statusCodes: ["400-599"]  # Only log errors
-    minDuration: "1s"
-
-# Connection timeouts for small VPS
-entryPoints:
-  web:
-    transport:
-      lifeCycle:
-        graceTimeOut: "10s"
-      respondingTimeouts:
-        readTimeout: "30s"
-        writeTimeout: "30s"
-        idleTimeout: "60s"
-  websecure:
-    transport:
-      lifeCycle:
-        graceTimeOut: "10s"
-      respondingTimeouts:
-        readTimeout: "30s"
-        writeTimeout: "30s"
-        idleTimeout: "60s" 
+    minDuration: "1s" 
