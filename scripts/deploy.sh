@@ -77,7 +77,7 @@ deploy_letsencrypt() {
     fi
     
     # Update Traefik config with user's email
-    sed -i "s/your-email@example.com/$LETSENCRYPT_EMAIL/g" traefik/traefik.letsencrypt.yml
+    sed -i "s/your-email@example.com/$LETSENCRYPT_EMAIL/g" traefik/traefik.yml
     
     print_status "Domain: $DOMAIN"
     print_status "Email: $LETSENCRYPT_EMAIL"
