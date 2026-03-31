@@ -7,6 +7,12 @@ import (
 	"github.com/thinkingojha/go-htmx/internal/utils"
 )
 
+// HomePageData wraps nil data with PageName for the base template
+type HomePageData struct {
+	PageName string
+	Title    string
+}
+
 func HomeHandler(w http.ResponseWriter, r *http.Request) error {
 	templates, err := utils.Templates.Templates.Clone()
 	if err != nil {
@@ -16,7 +22,11 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if err = templates.ExecuteTemplate(w, "home", nil); err != nil {
+	data := HomePageData{
+		PageName: "home",
+		Title:    "ankush.fyi",
+	}
+	if err = templates.ExecuteTemplate(w, "home", data); err != nil {
 		return err
 	}
 	return nil

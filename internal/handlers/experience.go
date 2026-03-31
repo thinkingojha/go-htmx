@@ -83,6 +83,13 @@ type SkillYAML struct {
 	Items    []string `yaml:"items"`
 }
 
+// AboutPageData embeds experience data and adds PageName for the base header template
+type AboutPageData struct {
+	ExperienceData
+	PageName string
+	Title    string
+}
+
 func ExpHandler(w http.ResponseWriter, r *http.Request) error {
 	templates, err := utils.Templates.Templates.Clone()
 	if err != nil {
@@ -93,10 +100,14 @@ func ExpHandler(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	// Experience data - loads from YAML file or falls back to hardcoded data
-	data := getExperienceData()
+	expData := getExperienceData()
+	data := AboutPageData{
+		ExperienceData: expData,
+		PageName:       "about",
+		Title:          "about",
+	}
 
-	if err = templates.ExecuteTemplate(w, "info", data); err != nil {
+	if err = templates.ExecuteTemplate(w, "about", data); err != nil {
 		return err
 	}
 	return nil

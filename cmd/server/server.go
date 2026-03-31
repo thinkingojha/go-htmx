@@ -51,12 +51,21 @@ func (s *Server) setupRoutes() {
 
 	// Application routes
 	api.HandleFunc("/", s.makeHTTPHandlerFunc(handlers.HomeHandler)).Methods("GET")
-	api.HandleFunc("/info", s.makeHTTPHandlerFunc(handlers.ExpHandler)).Methods("GET")
 
+	// About page (new: /about, legacy: /info)
+	api.HandleFunc("/about", s.makeHTTPHandlerFunc(handlers.ExpHandler)).Methods("GET")
+	api.Handle("/info", http.RedirectHandler("/about", http.StatusMovedPermanently)).Methods("GET")
+
+	// Products
 	api.HandleFunc("/products", s.makeHTTPHandlerFunc(handlers.ProductHandler)).Methods("GET")
 
-	// Blog routes
-	api.HandleFunc("/blog", s.makeHTTPHandlerFunc(handlers.WritingsHandler)).Methods("GET")
+	// Contact page (new)
+	api.HandleFunc("/contact", s.makeHTTPHandlerFunc(handlers.ContactHandler)).Methods("GET")
+
+	// Writings/Blog routes (new: /writings, legacy: /blog)
+	api.HandleFunc("/writings", s.makeHTTPHandlerFunc(handlers.WritingsHandler)).Methods("GET")
+	api.HandleFunc("/writings/{slug}", s.makeHTTPHandlerFunc(handlers.BlogPostHandler)).Methods("GET")
+	api.Handle("/blog", http.RedirectHandler("/writings", http.StatusMovedPermanently)).Methods("GET")
 	api.HandleFunc("/blog/filter", s.makeHTTPHandlerFunc(handlers.BlogFilterHandler)).Methods("GET")
 	api.HandleFunc("/blog/rss", s.makeHTTPHandlerFunc(handlers.BlogRSSHandler)).Methods("GET")
 	api.HandleFunc("/blog/{slug}", s.makeHTTPHandlerFunc(handlers.BlogPostHandler)).Methods("GET")

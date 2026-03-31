@@ -1,95 +1,168 @@
 id: "htmx-modern-web-development"
-title: "HTMX: The Modern Approach to Interactive Web Development"
+title: "HTMX + Go: The Stack I Keep Coming Back To"
 slug: "htmx-modern-web-development"
-excerpt: "discover how HTMX is revolutionizing web development by bringing interactivity to HTML without the complexity of modern JavaScript frameworks."
+excerpt: "Everyone's chasing the next JS framework. I rebuilt three internal tools with HTMX and Go and shipped faster than any React project I've done. Here's the architecture."
 content: |
-  # HTMX: The Modern Approach to Interactive Web Development
+  I want to be upfront: I like JavaScript. I use it professionally. But there's a class of application — internal tools, dashboards, content sites — where the React/Next.js stack is genuinely overkill.
 
-  In an era dominated by complex JavaScript frameworks, HTMX offers a refreshing alternative that brings the power of modern web development back to HTML.
+  HTMX and Go is the answer I keep landing on for these. Minimal JS, fast server, hypermedia as the engine of application state.
 
-  ## What is HTMX?
+  ## The mental model shift
 
-  HTMX is a library that allows you to access modern browser features directly from HTML, rather than using JavaScript. It extends HTML with attributes that enable:
+  React/Vue are *client-state managers with a render layer*. HTMX is a *HTTP request decorator for HTML elements*.
 
-  - AJAX requests
-  - CSS transitions
-  - WebSockets
-  - Server-sent events
-
-  ## Why Choose HTMX?
-
-  ### Simplicity Over Complexity
-
-  Instead of managing complex state in JavaScript, HTMX lets you build interactive applications with simple HTML attributes:
+  Instead of fetching JSON and rendering it client-side, HTMX fetches HTML fragments and swaps them into the DOM. The server is the source of truth. Always.
 
   ```html
-  <button hx-post="/api/like" 
-          hx-target="#like-count" 
-          hx-swap="innerHTML">
-      Like
+  <!-- React world: fetch JSON, manage state, re-render -->
+  <button onClick={() => fetch('/api/like').then(r => r.json()).then(setCount)}>
+    Like ({count})
+  </button>
+
+  <!-- HTMX world: just describe the intent -->
+  <button hx-post="/like/42"
+          hx-target="#like-count"
+          hx-swap="outerHTML">
+    Like
+  </button>
+  <span id="like-count">41 likes</span>
+  ```
+
+  The server returns the new `<span>`. Done.
+
+  ## Go templates + HTMX = remarkably fast
+
+  Go's `html/template` renders fast enough that even under load, full-page renders are sub-millisecond. HTMX fragments are even faster since they're smaller.
+
+  A typical handler that returns a fragment:
+
+  ```go
+  // GET /posts?tag=go — returns either full page or fragment
+  func (h *PostHandler) List(w http.ResponseWriter, r *http.Request) error {
+      tag := r.URL.Query().Get("tag")
+      posts, err := h.svc.ListByTag(r.Context(), tag)
+      if err != nil {
+          return err
+      }
+
+      data := PostListData{Posts: posts, SelectedTag: tag}
+
+      // HTMX sends this header on partial requests
+      if r.Header.Get("HX-Request") == "true" {
+          return h.tmpl.ExecuteTemplate(w, "post-list-fragment", data)
+      }
+      return h.tmpl.ExecuteTemplate(w, "post-list-page", data)
+  }
+  ```
+
+  The template:
+
+  ```html
+  {{define "post-list-fragment"}}
+  <div id="post-list" hx-swap-oob="true">
+    {{range .Posts}}
+    <article class="post-card">
+      <h2>{{.Title}}</h2>
+      <p>{{.Excerpt}}</p>
+    </article>
+    {{end}}
+  </div>
+  {{end}}
+  ```
+
+  ## Real-time updates with SSE
+
+  For live dashboards, Server-Sent Events work beautifully with HTMX's `hx-ext="sse"`:
+
+  ```html
+  <div hx-ext="sse"
+       sse-connect="/events/metrics"
+       sse-swap="message">
+    <div id="metrics">Loading...</div>
+  </div>
+  ```
+
+  The Go SSE handler:
+
+  ```go
+  func (h *MetricsHandler) Stream(w http.ResponseWriter, r *http.Request) {
+      w.Header().Set("Content-Type", "text/event-stream")
+      w.Header().Set("Cache-Control", "no-cache")
+      w.Header().Set("Connection", "keep-alive")
+
+      flusher, ok := w.(http.Flusher)
+      if !ok {
+          http.Error(w, "streaming not supported", http.StatusInternalServerError)
+          return
+      }
+
+      ticker := time.NewTicker(2 * time.Second)
+      defer ticker.Stop()
+
+      for {
+          select {
+          case <-r.Context().Done():
+              return
+          case <-ticker.C:
+              metrics := h.collector.Snapshot()
+              var buf bytes.Buffer
+              h.tmpl.ExecuteTemplate(&buf, "metrics-fragment", metrics)
+              fmt.Fprintf(w, "data: %s\n\n", buf.String())
+              flusher.Flush()
+          }
+      }
+  }
+  ```
+
+  ## Optimistic UI with HTMX indicators
+
+  HTMX has built-in request indicators — no spinner management in JS:
+
+  ```html
+  <button hx-post="/publish/42"
+          hx-indicator="#publish-spinner"
+          hx-disabled-elt="this">
+    Publish
+    <span id="publish-spinner"
+          class="htmx-indicator">
+      <!-- SVG spinner here -->
+    </span>
   </button>
   ```
 
-  ### Server-Side Rendering Renaissance
-
-  HTMX brings back the simplicity of server-side rendering while maintaining modern interactivity. Your server can return HTML fragments that seamlessly update the page.
-
-  ## Building with HTMX and Go
-
-  Go's templating system pairs perfectly with HTMX. Here's a simple example:
-
-  ```go
-  func likeHandler(w http.ResponseWriter, r *http.Request) {
-      // Update like count in database
-      count := updateLikeCount()
-      
-      // Return HTML fragment
-      fmt.Fprintf(w, `<span id="like-count">%d likes</span>`, count)
-  }
-  ```
-
-  ## Best Practices
-
-  ### 1. Progressive Enhancement
-  
-  Start with working HTML forms and enhance with HTMX:
-
-  ```html
-  <form action="/submit" method="post" hx-post="/submit" hx-target="#result">
-      <input type="text" name="message" required>
-      <button type="submit">Send</button>
-  </form>
-  ```
-
-  ### 2. Graceful Degradation
-
-  Ensure your application works without JavaScript by providing fallback forms and links.
-
-  ### 3. Use CSS for Smooth Transitions
-
-  Combine HTMX with CSS transitions for smooth user experiences:
-
   ```css
-  .htmx-swapping {
-      opacity: 0;
-      transition: opacity 0.3s ease-out;
-  }
+  .htmx-indicator { display: none; }
+  .htmx-request .htmx-indicator { display: inline; }
+  .htmx-request.htmx-indicator { display: inline; }
   ```
 
-  ## Conclusion
+  The spinner appears automatically while the request is in flight. No state, no `useState`, no component re-renders.
 
-  HTMX represents a paradigm shift back to simplicity in web development. By leveraging the power of HTML and server-side rendering, you can build modern, interactive applications without the complexity of traditional JavaScript frameworks.
+  ## Where HTMX genuinely struggles
 
-  For Go developers, HTMX offers an especially compelling proposition, allowing you to leverage Go's strengths in server-side development while creating rich, interactive user experiences.
+  I won't oversell it. HTMX has real limitations:
+
+  - **Complex client state**: a multi-step wizard with branching logic is painful without client state management
+  - **Optimistic updates**: hard to roll back server state on failure cleanly
+  - **Offline support**: server-dependent by design, no service worker story
+  - **Collaborative real-time**: Google Docs-style conflict resolution is out of scope
+
+  For these cases, use React or a thin JS layer on top of HTMX. The hybrid works fine.
+
+  ## My rule of thumb
+
+  If the feature can be described as "user does X, server responds with Y", HTMX handles it. If it requires "client tracks state Z across multiple server interactions simultaneously", reach for JS.
+
+  For most internal tools, the former covers 90% of features.
 author: "Ankush Ojha"
-publish_date: "2024-01-10"
+publish_date: "2026-03-31"
 updated_date: null
 category: "engineering"
-tags: ["htmx", "web development", "javascript", "html", "frontend"]
-reading_time: 6
+tags: ["htmx", "go", "web development", "sse", "hypermedia"]
+reading_time: 8
 featured: true
 published: true
 meta:
-  description: "Discover how HTMX is revolutionizing web development by bringing interactivity to HTML without the complexity of modern JavaScript frameworks."
-  keywords: ["htmx", "web development", "interactive html", "javascript alternative", "modern web"]
-  og_image: "/static/images/blog/htmx-development.jpg" 
+  description: "Building production apps with HTMX and Go — fragments, SSE, optimistic UI, and an honest take on where HTMX falls short."
+  keywords: ["htmx go", "htmx server sent events", "go templates", "hypermedia", "htmx production"]
+  og_image: "/static/images/blog/htmx-development.jpg"

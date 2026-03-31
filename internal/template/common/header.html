@@ -1,16 +1,27 @@
 {{ define "header" }}
-<header class="pt-6 pb-4 px-4 md:px-0 flex justify-between">
-    <a href="/">
-        <h1 class="text-2xl lg:text-3xl text-black font-semibold"> ankushojha.<span class="font-light">dev</span></h1>
-    </a>
-    <nav class="flex gap-2 text-lg font-light">
-        <a href="/" class="hover:underline hover:decoration-2">me</a>
-        <span class="font-semibold">•</span>
-        <a href="/info" class="hover:underline hover:decoration-2">experience</a>
-        <span class="font-semibold">•</span>
-        <a href="/blog" class="hover:underline hover:decoration-2">writings</a>
-        <!-- <span class="font-semibold">•</span> -->
-        <!-- <a href="/products" class="hover:underline hover:decoration-2">products</a> -->
-    </nav>
+<header style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: #ffffff;
+    border-bottom: 1px solid #f0f0f0;
+    padding: 20px 0;
+    z-index: 100;
+">
+    <div style="max-width: 42rem; margin: 0 auto; padding: 0 2rem;">
+        <a href="/" style="text-decoration: none;">
+            <span style="
+                font-family: 'Space Grotesk', system-ui, sans-serif;
+                font-size: 16px;
+                font-weight: 500;
+                letter-spacing: 0.12em;
+                color: #1a1a1a;
+            ">ankush.fyi{{ if and .PageName (ne .PageName "home") }} &mdash; {{ .PageName }}{{ end }}</span>
+        </a>
+    </div>
 </header>
+
+<!-- Spacer so content doesn't slide under fixed header -->
+<div style="height: 60px;"></div>
 {{ end }}

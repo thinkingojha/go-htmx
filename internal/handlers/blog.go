@@ -99,6 +99,8 @@ type BlogPageData struct {
 	RecentPosts      []BlogPost
 	RelatedPosts     []BlogPost
 	AllTags          []string
+	PageName         string
+	Title            string
 }
 
 // Main blog listing handler
@@ -155,6 +157,8 @@ func WritingsHandler(w http.ResponseWriter, r *http.Request) error {
 		FeaturedPosts:    getFeaturedPosts(blogData.Posts),
 		RecentPosts:      getRecentPosts(blogData.Posts, 5),
 		AllTags:          getAllTags(blogData.Posts),
+		PageName:         "writings",
+		Title:            "writings",
 	}
 	pageData.Posts = paginatedPosts
 
@@ -201,6 +205,8 @@ func BlogPostHandler(w http.ResponseWriter, r *http.Request) error {
 		BlogData:     *blogData,
 		Post:         post,
 		RelatedPosts: getRelatedPosts(blogData.Posts, *post, 3),
+		PageName:     "writings",
+		Title:        post.Title,
 	}
 
 	return templates.ExecuteTemplate(w, "blog", pageData)

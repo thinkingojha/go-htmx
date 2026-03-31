@@ -1,95 +1,215 @@
 id: "building-scalable-microservices-golang"
-title: "Building Scalable Microservices with Go"
+title: "Building Scalable Microservices with Go in 2026"
 slug: "building-scalable-microservices-golang"
-excerpt: "learn how to design and implement scalable microservices using Go, covering service discovery, load balancing, and inter-service communication patterns."
+excerpt: "A deep dive into production-grade microservices with Go — covering service mesh integration, gRPC streaming, distributed tracing, and the patterns we use at Nielsen to handle millions of events per day."
 content: |
-  # Building Scalable Microservices with Go
+  Microservices have matured significantly since their hype peak. In 2026, building them well means making deliberate choices around communication, observability, and failure modes — not just splitting a monolith into smaller HTTP servers.
 
-  Microservices architecture has become the de facto standard for building large-scale distributed systems. In this article, we'll explore how to leverage Go's unique strengths to build robust, scalable microservices.
+  This is a practical guide based on what we've actually shipped at scale.
 
-  ## Why Go for Microservices?
+  ## The architecture we settled on
 
-  Go offers several advantages that make it ideal for microservices development:
+  After iterating over three major versions of our analytics platform, we landed on this structure:
 
-  - **Lightweight concurrency**: Goroutines enable handling thousands of concurrent requests
-  - **Fast compilation**: Quick feedback loop during development
-  - **Static typing**: Reduces runtime errors and improves maintainability
-  - **Rich standard library**: Built-in support for HTTP, JSON, and networking
+  ```
+  ┌─────────────┐    gRPC     ┌─────────────────┐
+  │  API Gateway │ ──────────▶ │  Event Ingestor  │
+  └─────────────┘             └────────┬────────┘
+                                       │ Kafka
+                              ┌────────▼────────┐
+                              │  Stream Processor│
+                              └────────┬────────┘
+                                       │
+                    ┌──────────────────┼──────────────────┐
+                    ▼                  ▼                   ▼
+             ┌──────────┐      ┌──────────────┐   ┌──────────────┐
+             │ TimeSeries│      │  Aggregation  │   │  Notification│
+             │   Store   │      │    Service    │   │   Service    │
+             └──────────┘      └──────────────┘   └──────────────┘
+  ```
 
-  ## Key Design Principles
+  Each service owns its own data store, deploys independently, and communicates async-first via Kafka with synchronous gRPC fallback for low-latency paths.
 
-  ### 1. Service Boundaries
-  
-  Define clear service boundaries based on business capabilities rather than technical layers. Each service should own its data and business logic.
+  ## Service boundaries that actually hold
+
+  The biggest mistake is boundaries drawn around technical concerns ("data layer service", "auth service") instead of business capabilities. We model around **bounded contexts**.
 
   ```go
-  type UserService struct {
-      repo UserRepository
-      validator UserValidator
+  // Good: owns the full campaign lifecycle
+  type CampaignService struct {
+      repo        CampaignRepository
+      eventBus    EventPublisher
+      scorer      AudienceScorer
+      logger      *slog.Logger
   }
 
-  func (s *UserService) CreateUser(ctx context.Context, req CreateUserRequest) (*User, error) {
-      if err := s.validator.Validate(req); err != nil {
+  func (s *CampaignService) Activate(ctx context.Context, id string) error {
+      camp, err := s.repo.FindByID(ctx, id)
+      if err != nil {
+          return fmt.Errorf("campaign.Activate: %w", err)
+      }
+      if !camp.CanActivate() {
+          return ErrCampaignNotReady
+      }
+      camp.Status = StatusActive
+      if err := s.repo.Save(ctx, camp); err != nil {
+          return fmt.Errorf("campaign.Activate save: %w", err)
+      }
+      return s.eventBus.Publish(ctx, CampaignActivatedEvent{ID: id})
+  }
+  ```
+
+  Notice the domain logic (`CanActivate`) sits in the domain object — not in the handler or repository.
+
+  ## gRPC for inter-service calls
+
+  REST is fine for external APIs. Internally, gRPC gives you typed contracts, streaming, and better performance.
+
+  ```proto
+  // analytics.proto
+  syntax = "proto3";
+
+  service AnalyticsService {
+    rpc IngestEvents(stream RawEvent) returns (IngestResponse);
+    rpc QueryMetrics(MetricsRequest) returns (stream MetricPoint);
+  }
+
+  message RawEvent {
+    string campaign_id = 1;
+    string event_type  = 2;
+    int64  timestamp   = 3;
+    map<string, string> dimensions = 4;
+  }
+  ```
+
+  The Go client with context propagation and retry:
+
+  ```go
+  func (c *AnalyticsClient) IngestBatch(ctx context.Context, events []RawEvent) error {
+      stream, err := c.client.IngestEvents(ctx)
+      if err != nil {
+          return fmt.Errorf("opening stream: %w", err)
+      }
+
+      for _, ev := range events {
+          if err := stream.Send(&pb.RawEvent{
+              CampaignId: ev.CampaignID,
+              EventType:  ev.Type,
+              Timestamp:  ev.TS.UnixMilli(),
+              Dimensions: ev.Dims,
+          }); err != nil {
+              return fmt.Errorf("sending event: %w", err)
+          }
+      }
+
+      resp, err := stream.CloseAndRecv()
+      if err != nil {
+          return fmt.Errorf("closing stream: %w", err)
+      }
+      if resp.Dropped > 0 {
+          c.logger.Warn("events dropped", "count", resp.Dropped)
+      }
+      return nil
+  }
+  ```
+
+  ## Distributed tracing with OpenTelemetry
+
+  Every request that crosses a service boundary gets a trace. We use the OTEL SDK with a Jaeger backend.
+
+  ```go
+  func initTracer(serviceName string) (*trace.TracerProvider, error) {
+      exporter, err := otlptracehttp.New(context.Background(),
+          otlptracehttp.WithEndpoint(os.Getenv("OTEL_ENDPOINT")),
+          otlptracehttp.WithInsecure(),
+      )
+      if err != nil {
           return nil, err
       }
-      return s.repo.Create(ctx, req)
+
+      tp := trace.NewTracerProvider(
+          trace.WithBatcher(exporter),
+          trace.WithResource(resource.NewWithAttributes(
+              semconv.SchemaURL,
+              semconv.ServiceNameKey.String(serviceName),
+              attribute.String("env", os.Getenv("APP_ENV")),
+          )),
+      )
+      otel.SetTracerProvider(tp)
+      otel.SetTextMapPropagator(propagation.TraceContext{})
+      return tp, nil
   }
   ```
 
-  ### 2. Communication Patterns
-
-  Choose the right communication pattern based on your use case:
-
-  - **Synchronous**: HTTP/REST for request-response patterns
-  - **Asynchronous**: Message queues for event-driven architectures
-
-  ## Implementation Best Practices
-
-  ### Service Discovery
-
-  Implement service discovery for dynamic service location:
+  Instrument your handlers with a single middleware:
 
   ```go
-  type ServiceRegistry interface {
-      Register(service ServiceInfo) error
-      Discover(serviceName string) ([]ServiceInfo, error)
-      Deregister(serviceID string) error
+  func TraceMiddleware(next http.Handler) http.Handler {
+      return otelhttp.NewHandler(next, "http.request",
+          otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
+      )
   }
   ```
 
-  ### Health Checks
+  ## Health checks worth having
 
-  Always implement health check endpoints:
+  A `/health` endpoint that only returns 200 when the service is genuinely ready:
 
   ```go
-  func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
-      health := struct {
-          Status    string `json:"status"`
-          Timestamp string `json:"timestamp"`
-          Version   string `json:"version"`
-      }{
-          Status:    "healthy",
-          Timestamp: time.Now().UTC().Format(time.RFC3339),
-          Version:   s.version,
-      }
+  type HealthChecker struct {
+      db    *sql.DB
+      kafka *kafka.Producer
+  }
+
+  func (h *HealthChecker) Check(w http.ResponseWriter, r *http.Request) {
+      checks := map[string]string{}
       
+      ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+      defer cancel()
+
+      if err := h.db.PingContext(ctx); err != nil {
+          checks["postgres"] = "unreachable: " + err.Error()
+      } else {
+          checks["postgres"] = "ok"
+      }
+
+      if err := h.kafka.Flush(100); err != nil {
+          checks["kafka"] = "degraded"
+      } else {
+          checks["kafka"] = "ok"
+      }
+
+      status := http.StatusOK
+      for _, v := range checks {
+          if v != "ok" {
+              status = http.StatusServiceUnavailable
+              break
+          }
+      }
+
       w.Header().Set("Content-Type", "application/json")
-      json.NewEncoder(w).Encode(health)
+      w.WriteHeader(status)
+      json.NewEncoder(w).Encode(map[string]interface{}{
+          "status": checks,
+          "uptime": time.Since(startTime).String(),
+      })
   }
   ```
 
-  ## Conclusion
+  ## What I'd tell myself from 3 years ago
 
-  Building scalable microservices with Go requires careful consideration of service design, communication patterns, and operational concerns. By following these principles and leveraging Go's strengths, you can build robust, maintainable microservices that scale with your business needs.
+  Start with fewer services than you think you need. A well-structured monolith is easier to extract from than a poorly-bounded microservice cluster. We spent six months untangling two services that shared a database and called each other in a cycle.
+
+  The observable, testable, independently deployable properties matter more than the "micro" part.
 author: "Ankush Ojha"
-publish_date: "2024-01-15"
-updated_date: "2024-01-16"
+publish_date: "2026-03-31"
+updated_date: null
 category: "engineering"
-tags: ["go", "microservices", "architecture", "backend", "scalability"]
-reading_time: 8
+tags: ["go", "microservices", "grpc", "observability", "kafka"]
+reading_time: 9
 featured: true
 published: true
 meta:
-  description: "Learn how to design and implement scalable microservices using Go, covering service discovery, load balancing, and inter-service communication patterns."
-  keywords: ["golang", "microservices", "scalable architecture", "service discovery", "go programming"]
-  og_image: "/static/images/blog/microservices-go.jpg" 
+  description: "Production patterns for Go microservices in 2026 — gRPC streaming, distributed tracing with OpenTelemetry, and service boundary design from real systems."
+  keywords: ["golang microservices", "grpc go", "opentelemetry go", "distributed tracing", "kafka go"]
+  og_image: "/static/images/blog/microservices-go.jpg"

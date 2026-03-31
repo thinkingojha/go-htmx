@@ -65,13 +65,13 @@ deploy_letsencrypt() {
     fi
     
     # Validate domain
-    if [ -z "$DOMAIN" ] || [ "$DOMAIN" == "yourdomain.com" ]; then
+    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "yourdomain.com" ]; then
         print_error "Please set DOMAIN in .env file to your actual domain"
         exit 1
     fi
     
     # Validate email
-    if [ -z "$LETSENCRYPT_EMAIL" ] || [ "$LETSENCRYPT_EMAIL" == "your-email@example.com" ]; then
+    if [ -z "$LETSENCRYPT_EMAIL" ] || [ "$LETSENCRYPT_EMAIL" = "your-email@example.com" ]; then
         print_error "Please set LETSENCRYPT_EMAIL in .env file to your actual email"
         exit 1
     fi
@@ -84,7 +84,9 @@ deploy_letsencrypt() {
     
     # Set up directories
     mkdir -p traefik/data
-    chmod 600 traefik/data
+    chmod 755 traefik/data
+    touch traefik/data/acme.json
+    chmod 600 traefik/data/acme.json
     
     # Stop any existing containers
     docker-compose down --remove-orphans 2>/dev/null || true
@@ -116,7 +118,7 @@ deploy_http_only() {
     
     # Set up directories
     mkdir -p traefik/data
-    chmod 600 traefik/data
+    chmod 755 traefik/data
     
     # Stop any existing containers
     docker-compose -f docker-compose.no-ssl.yaml down --remove-orphans 2>/dev/null || true
@@ -171,7 +173,7 @@ main() {
     print_header
     
     # Check if running as root
-    if [[ $EUID -eq 0 ]]; then
+    if [ "$(id -u)" -eq 0 ]; then
         print_error "This script should not be run as root for security reasons"
         exit 1
     fi

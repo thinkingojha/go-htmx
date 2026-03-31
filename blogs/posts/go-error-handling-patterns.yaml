@@ -1,146 +1,214 @@
 id: "go-error-handling-patterns"
-title: "Effective Error Handling Patterns in Go"
+title: "Error Handling in Go: Patterns That Scale"
 slug: "go-error-handling-patterns"
-excerpt: "explore advanced error handling techniques in Go, including custom error types, error wrapping, and building robust error management systems."
+excerpt: "Go 1.22 didn't change how errors work — but how you handle them at scale still matters enormously. Here's the error handling architecture behind a system processing 40M events/day."
 content: |
-  # Effective Error Handling Patterns in Go
+  Error handling in Go is a feature, not a flaw. The explicitness forces you to think about failure modes at every callsite. But at scale, you need more than `if err != nil { return err }`.
 
-  Error handling is one of Go's most distinctive features. While it might seem verbose at first, Go's explicit error handling leads to more robust and predictable code.
+  Here's what our error architecture looks like after three years of production evolution.
 
-  ## The Go Way of Error Handling
+  ## The domain error pattern
 
-  Go treats errors as values, not exceptions. This fundamental difference shapes how we write and think about error handling:
-
-  ```go
-  result, err := someOperation()
-  if err != nil {
-      return nil, err
-  }
-  ```
-
-  ## Custom Error Types
-
-  Creating custom error types provides better context and enables type-based error handling:
+  The core idea: errors carry both a **code** (for programmatic handling) and a **message** (for humans/logs). Never use raw `errors.New` in domain logic.
 
   ```go
-  type ValidationError struct {
-      Field   string
-      Message string
-  }
+  type Code string
 
-  func (e ValidationError) Error() string {
-      return fmt.Sprintf("validation failed for %s: %s", e.Field, e.Message)
-  }
-  ```
-
-  ## Error Wrapping
-
-  Go 1.13 introduced error wrapping, allowing you to add context while preserving the original error:
-
-  ```go
-  if err != nil {
-      return fmt.Errorf("failed to process user %d: %w", userID, err)
-  }
-  ```
-
-  ## Sentinel Errors
-
-  Use sentinel errors for well-known error conditions:
-
-  ```go
-  var (
-      ErrUserNotFound = errors.New("user not found")
-      ErrInvalidInput = errors.New("invalid input")
+  const (
+      CodeNotFound      Code = "NOT_FOUND"
+      CodeUnauthorized  Code = "UNAUTHORIZED"
+      CodeInvalidInput  Code = "INVALID_INPUT"
+      CodeConflict      Code = "CONFLICT"
+      CodeInternal      Code = "INTERNAL"
   )
 
-  func FindUser(id int) (*User, error) {
-      if id <= 0 {
-          return nil, ErrInvalidInput
+  type DomainError struct {
+      Code    Code
+      Message string
+      Op      string    // operation where error occurred
+      Err     error     // underlying cause
+  }
+
+  func (e *DomainError) Error() string {
+      if e.Op != "" {
+          return fmt.Sprintf("%s: %s", e.Op, e.Message)
       }
-      // ... implementation
+      return e.Message
+  }
+
+  func (e *DomainError) Unwrap() error { return e.Err }
+
+  func (e *DomainError) Is(target error) bool {
+      t, ok := target.(*DomainError)
+      if !ok {
+          return false
+      }
+      return e.Code == t.Code
   }
   ```
 
-  ## Error Handling in HTTP Handlers
-
-  Structure your HTTP handlers to handle errors gracefully:
+  Usage in domain logic:
 
   ```go
+  func (s *UserService) GetByEmail(ctx context.Context, email string) (*User, error) {
+      user, err := s.repo.FindByEmail(ctx, email)
+      if err != nil {
+          if errors.Is(err, sql.ErrNoRows) {
+              return nil, &DomainError{
+                  Code:    CodeNotFound,
+                  Message: "no user with that email",
+                  Op:      "UserService.GetByEmail",
+                  Err:     err,
+              }
+          }
+          return nil, &DomainError{
+              Code:    CodeInternal,
+              Message: "database error",
+              Op:      "UserService.GetByEmail",
+              Err:     err,
+          }
+      }
+      return user, nil
+  }
+  ```
+
+  ## Translating domain errors to HTTP
+
+  A single function converts domain errors to HTTP responses. The handler stays clean:
+
+  ```go
+  func HTTPStatusFromError(err error) int {
+      var de *DomainError
+      if !errors.As(err, &de) {
+          return http.StatusInternalServerError
+      }
+      switch de.Code {
+      case CodeNotFound:
+          return http.StatusNotFound
+      case CodeUnauthorized:
+          return http.StatusUnauthorized
+      case CodeInvalidInput:
+          return http.StatusBadRequest
+      case CodeConflict:
+          return http.StatusConflict
+      default:
+          return http.StatusInternalServerError
+      }
+  }
+
+  // In your handler:
   func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
-      id, err := strconv.Atoi(r.URL.Query().Get("id"))
+      user, err := h.svc.GetByEmail(r.Context(), r.URL.Query().Get("email"))
       if err != nil {
-          h.respondWithError(w, http.StatusBadRequest, "invalid user ID")
+          status := HTTPStatusFromError(err)
+          h.respond(w, status, map[string]string{"error": err.Error()})
           return
       }
-
-      user, err := h.userService.GetUser(id)
-      if errors.Is(err, ErrUserNotFound) {
-          h.respondWithError(w, http.StatusNotFound, "user not found")
-          return
-      }
-      if err != nil {
-          h.respondWithError(w, http.StatusInternalServerError, "internal server error")
-          return
-      }
-
-      h.respondWithJSON(w, http.StatusOK, user)
+      h.respond(w, http.StatusOK, user)
   }
   ```
 
-  ## Best Practices
+  ## Structured logging with slog (Go 1.21+)
 
-  ### 1. Be Explicit About Errors
-
-  Don't ignore errors. Handle them explicitly or document why they're being ignored:
+  Stop logging raw error strings. Log structured fields so you can query them:
 
   ```go
-  // Good
-  if err != nil {
-      log.Printf("non-critical operation failed: %v", err)
-  }
-
-  // Bad
-  _ = riskyOperation()
-  ```
-
-  ### 2. Provide Context
-
-  Add meaningful context to errors as they bubble up:
-
-  ```go
-  func (s *Service) ProcessOrder(orderID string) error {
-      order, err := s.repo.GetOrder(orderID)
+  func (s *OrderService) Process(ctx context.Context, orderID string) error {
+      order, err := s.repo.Get(ctx, orderID)
       if err != nil {
-          return fmt.Errorf("failed to retrieve order %s: %w", orderID, err)
+          slog.ErrorContext(ctx, "failed to fetch order",
+              slog.String("order_id", orderID),
+              slog.String("op", "OrderService.Process"),
+              slog.Any("error", err),
+          )
+          return fmt.Errorf("OrderService.Process: %w", err)
       }
-      // ... rest of processing
+      // ...
+      return nil
   }
   ```
 
-  ### 3. Use Structured Logging
-
-  Log errors with structured information for better debugging:
+  This logs as JSON in production (`slog.NewJSONHandler`) and as human text locally (`slog.NewTextHandler`). Switch with an env var:
 
   ```go
-  log.WithFields(log.Fields{
-      "user_id":  userID,
-      "order_id": orderID,
-      "error":    err,
-  }).Error("failed to process order")
+  func newLogger(env string) *slog.Logger {
+      if env == "production" {
+          return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+              Level: slog.LevelInfo,
+              ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+                  if a.Key == slog.TimeKey {
+                      a.Value = slog.StringValue(a.Value.Time().UTC().Format(time.RFC3339))
+                  }
+                  return a
+              },
+          }))
+      }
+      return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+          Level: slog.LevelDebug,
+      }))
+  }
   ```
 
-  ## Conclusion
+  ## Panic recovery as middleware
 
-  Effective error handling in Go requires thinking about errors as values and building robust error management into your application architecture. By following these patterns, you can create more maintainable and debuggable Go applications.
+  Services die from panics in unexpected places. A recovery middleware keeps them alive and gives you a stack trace:
+
+  ```go
+  func Recovery(next http.Handler) http.Handler {
+      return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+          defer func() {
+              if rec := recover(); rec != nil {
+                  buf := make([]byte, 4096)
+                  n := runtime.Stack(buf, false)
+                  slog.Error("panic recovered",
+                      slog.Any("panic", rec),
+                      slog.String("stack", string(buf[:n])),
+                      slog.String("url", r.URL.String()),
+                  )
+                  http.Error(w, "internal server error", http.StatusInternalServerError)
+              }
+          }()
+          next.ServeHTTP(w, r)
+      })
+  }
+  ```
+
+  ## The rule I follow
+
+  **Wrap at every boundary crossing.** When control crosses from one package to another, return a wrapped error with the operation name. This gives you a call chain in the error message without needing a stack trace.
+
+  ```go
+  // storage/user.go
+  func (r *UserRepo) FindByID(ctx context.Context, id string) (*User, error) {
+      // ...
+      if err != nil {
+          return nil, fmt.Errorf("storage.UserRepo.FindByID id=%s: %w", id, err)
+      }
+  }
+
+  // service/user.go
+  func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
+      u, err := s.repo.FindByID(ctx, id)
+      if err != nil {
+          return nil, fmt.Errorf("service.UserService.GetUser: %w", err)
+      }
+      return u, nil
+  }
+  ```
+
+  The resulting error message reads like a call stack:
+  `service.UserService.GetUser: storage.UserRepo.FindByID id=abc123: sql: no rows in result set`
+
+  No surprises when something breaks at 3am.
 author: "Ankush Ojha"
-publish_date: "2024-01-05"
+publish_date: "2026-03-31"
 updated_date: null
 category: "go-development"
-tags: ["go", "error handling", "best practices", "programming", "golang"]
+tags: ["go", "error handling", "slog", "observability", "patterns"]
 reading_time: 7
 featured: false
 published: true
 meta:
-  description: "Explore advanced error handling techniques in Go, including custom error types, error wrapping, and building robust error management systems."
-  keywords: ["go error handling", "golang errors", "custom error types", "error wrapping", "go best practices"]
-  og_image: "/static/images/blog/go-error-handling.jpg" 
+  description: "Production error handling patterns in Go — domain errors, HTTP translation, structured logging with slog, and panic recovery middleware."
+  keywords: ["go error handling", "golang slog", "domain errors", "go production patterns"]
+  og_image: "/static/images/blog/go-error-handling.jpg"

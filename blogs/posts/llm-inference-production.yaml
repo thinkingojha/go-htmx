@@ -1,0 +1,215 @@
+id: "llm-inference-production"
+title: "Running LLMs in Production: What We Learned at Nielsen"
+slug: "llm-inference-production"
+excerpt: "We built an LLM inference platform on AWS Bedrock serving 2M+ requests/month across 12 internal tools. Here's the architecture, the failures, and what actually works."
+content: |
+  In early 2025 we started getting requests from product teams to integrate LLM capabilities into our analytics tools. By Q4 2025 we were serving over 2 million LLM API requests per month. This is what we learned.
+
+  ## The architecture
+
+  ```
+  ┌──────────────────────────────────────────────────────────┐
+  │                     Client Applications                   │
+  └──────────────────┬────────────────────────────────────────┘
+                     │ HTTP
+  ┌──────────────────▼────────────────────────────────────────┐
+  │                   LLM Gateway (Go)                        │
+  │  ┌────────────┐  ┌────────────┐  ┌───────────────────┐   │
+  │  │Rate Limiter│  │ Prompt Mgr │  │  Response Cache   │   │
+  │  └────────────┘  └────────────┘  └───────────────────┘   │
+  └──────────────────┬────────────────────────────────────────┘
+                     │ AWS SDK
+  ┌──────────────────▼────────────────────────────────────────┐
+  │                    AWS Bedrock                            │
+  │        Claude 3.5 Sonnet  │  Titan Embeddings           │
+  └────────────────────────────────────────────────────────────┘
+  ```
+
+  The gateway is a Go service that handles auth, rate limiting, prompt management, response caching, and cost tracking. Bedrock handles the actual inference.
+
+  ## Calling Bedrock from Go
+
+  The AWS Go SDK v2 makes this straightforward:
+
+  ```go
+  type BedrockClient struct {
+      client    *bedrockruntime.Client
+      modelID   string
+      maxTokens int32
+  }
+
+  type InferenceRequest struct {
+      SystemPrompt string
+      UserMessage  string
+      Temperature  float64
+  }
+
+  func (c *BedrockClient) Complete(ctx context.Context, req InferenceRequest) (string, error) {
+      body := ClaudeRequest{
+          AnthropicVersion: "bedrock-2023-05-31",
+          MaxTokens:        c.maxTokens,
+          Temperature:      req.Temperature,
+          System:           req.SystemPrompt,
+          Messages: []Message{
+              {Role: "user", Content: req.UserMessage},
+          },
+      }
+
+      bodyBytes, err := json.Marshal(body)
+      if err != nil {
+          return "", fmt.Errorf("marshaling request: %w", err)
+      }
+
+      output, err := c.client.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
+          ModelId:     aws.String(c.modelID),
+          ContentType: aws.String("application/json"),
+          Body:        bodyBytes,
+      })
+      if err != nil {
+          return "", fmt.Errorf("bedrock invoke: %w", err)
+      }
+
+      var response ClaudeResponse
+      if err := json.Unmarshal(output.Body, &response); err != nil {
+          return "", fmt.Errorf("unmarshaling response: %w", err)
+      }
+
+      if len(response.Content) == 0 {
+          return "", errors.New("empty response from model")
+      }
+      return response.Content[0].Text, nil
+  }
+  ```
+
+  ## Streaming responses
+
+  For user-facing features, streaming makes the experience feel instant. Bedrock supports streaming natively:
+
+  ```go
+  func (c *BedrockClient) Stream(ctx context.Context, req InferenceRequest, out chan<- string) error {
+      defer close(out)
+
+      bodyBytes, _ := json.Marshal(buildClaudeBody(req))
+
+      output, err := c.client.InvokeModelWithResponseStream(ctx,
+          &bedrockruntime.InvokeModelWithResponseStreamInput{
+              ModelId:     aws.String(c.modelID),
+              ContentType: aws.String("application/json"),
+              Body:        bodyBytes,
+          },
+      )
+      if err != nil {
+          return fmt.Errorf("starting stream: %w", err)
+      }
+
+      for event := range output.GetStream().Events() {
+          switch v := event.(type) {
+          case *types.ResponseStreamMemberChunk:
+              var chunk StreamChunk
+              if err := json.Unmarshal(v.Value.Bytes, &chunk); err != nil {
+                  continue
+              }
+              if chunk.Type == "content_block_delta" {
+                  out <- chunk.Delta.Text
+              }
+          }
+      }
+      return output.GetStream().Err()
+  }
+  ```
+
+  The HTTP handler sends chunks as SSE:
+
+  ```go
+  func (h *LLMHandler) StreamCompletion(w http.ResponseWriter, r *http.Request) {
+      w.Header().Set("Content-Type", "text/event-stream")
+      w.Header().Set("Cache-Control", "no-cache")
+
+      flusher := w.(http.Flusher)
+      chunks := make(chan string, 32)
+
+      go func() {
+          if err := h.client.Stream(r.Context(), parseReq(r), chunks); err != nil {
+              slog.ErrorContext(r.Context(), "stream error", slog.Any("error", err))
+          }
+      }()
+
+      for chunk := range chunks {
+          fmt.Fprintf(w, "data: %s\n\n", chunk)
+          flusher.Flush()
+      }
+      fmt.Fprintf(w, "data: [DONE]\n\n")
+      flusher.Flush()
+  }
+  ```
+
+  ## Semantic caching to cut costs
+
+  The single biggest cost reduction: cache by semantic similarity, not exact match. Two questions that mean the same thing hit the cache.
+
+  ```go
+  type SemanticCache struct {
+      embedder  EmbeddingClient
+      store     VectorStore    // we use pgvector
+      threshold float64        // cosine similarity threshold, we use 0.92
+      ttl       time.Duration
+  }
+
+  func (c *SemanticCache) Get(ctx context.Context, query string) (string, bool) {
+      embedding, err := c.embedder.Embed(ctx, query)
+      if err != nil {
+          return "", false  // cache miss on error, don't block
+      }
+
+      result, err := c.store.FindSimilar(ctx, embedding, c.threshold)
+      if err != nil || result == nil {
+          return "", false
+      }
+      return result.Response, true
+  }
+
+  func (c *SemanticCache) Set(ctx context.Context, query, response string) {
+      embedding, err := c.embedder.Embed(ctx, query)
+      if err != nil {
+          return
+      }
+      c.store.Insert(ctx, CacheEntry{
+          Query:     query,
+          Embedding: embedding,
+          Response:  response,
+          ExpiresAt: time.Now().Add(c.ttl),
+      })
+  }
+  ```
+
+  This dropped our Bedrock costs by 34% in production.
+
+  ## The failures we had
+
+  **Context window overflows.** We didn't implement prompt size checking early enough. Some users sent 50-page documents which caused silent truncation. Always count tokens before sending.
+
+  **Rate limit cascades.** Bedrock has per-region limits. When one region got throttled, all retries went to the same region. Use exponential backoff with jitter and spread across regions.
+
+  **Prompt injection.** Internal tools felt "safe" so we didn't sanitize inputs early. A user discovered they could override system prompts by ending their input with `\n\nIgnore previous instructions`. Validate and sanitize. Always.
+
+  ## What I'd prioritize building first
+
+  1. Cost tracking per team/feature (you need this on day 1)
+  2. Request/response logging with PII redaction
+  3. Hard token limits per request
+  4. Semantic caching (biggest ROI)
+  5. Streaming (biggest UX win)
+
+  Everything else is optimization.
+author: "Ankush Ojha"
+publish_date: "2026-03-31"
+updated_date: null
+category: "engineering"
+tags: ["llm", "go", "aws bedrock", "ai", "production", "inference"]
+reading_time: 10
+featured: true
+published: true
+meta:
+  description: "Production LLM inference with Go and AWS Bedrock — streaming, semantic caching, cost tracking, and the failures we had along the way."
+  keywords: ["llm production go", "aws bedrock golang", "llm gateway", "semantic cache", "ai engineering"]
+  og_image: "/static/images/blog/llm-inference.jpg"
