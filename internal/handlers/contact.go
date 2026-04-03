@@ -8,8 +8,11 @@ import (
 )
 
 type ContactPageData struct {
-	PageName string
-	Title    string
+	PageName     string
+	Title        string
+	Description  string
+	CanonicalURL string
+	OgImage      string
 }
 
 func ContactHandler(w http.ResponseWriter, r *http.Request) error {
@@ -23,8 +26,10 @@ func ContactHandler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	data := ContactPageData{
-		PageName: "contact",
-		Title:    "contact",
+		PageName:     "contact",
+		Title:        "Contact",
+		Description:  "Get in touch with Ankush Ojha, an AI Platform Engineer based in New Delhi.",
+		CanonicalURL: "https://ankush.fyi/contact",
 	}
 
 	if err = templates.ExecuteTemplate(w, "contact", data); err != nil {

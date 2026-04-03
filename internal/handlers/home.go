@@ -9,8 +9,11 @@ import (
 
 // HomePageData wraps nil data with PageName for the base template
 type HomePageData struct {
-	PageName string
-	Title    string
+	PageName     string
+	Title        string
+	Description  string
+	CanonicalURL string
+	OgImage      string
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) error {
@@ -23,8 +26,11 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	data := HomePageData{
-		PageName: "home",
-		Title:    "ankush.fyi",
+		PageName:     "home",
+		Title:        "AI Platform Engineer",
+		Description:  "Ankush Ojha - AI Platform Engineer shipping production LLM systems and scalable microservices. Based in New Delhi.",
+		CanonicalURL: "https://ankush.fyi/",
+		OgImage:      "https://unavatar.io/twitter/fyiankush",
 	}
 	if err = templates.ExecuteTemplate(w, "home", data); err != nil {
 		return err

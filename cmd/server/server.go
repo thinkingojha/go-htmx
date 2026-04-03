@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -44,10 +45,25 @@ func (s *Server) setupRoutes() {
 	api.Use(middleware.CORS(s.config))
 	api.Use(middleware.Timeout(30 * time.Second))
 
-	// Static file serving
 	staticHandler := http.StripPrefix("/static/",
 		http.FileServer(http.Dir(s.config.App.StaticDir)))
 	api.PathPrefix("/static/").Handler(staticHandler)
+
+	// SEO and AI Agent routes
+	api.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath.Join(s.config.App.StaticDir, "robots.txt"))
+	}).Methods("GET")
+	api.HandleFunc("/sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath.Join(s.config.App.StaticDir, "sitemap.xml"))
+	}).Methods("GET")
+	api.HandleFunc("/llms.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		http.ServeFile(w, r, filepath.Join(s.config.App.StaticDir, "llms.txt"))
+	}).Methods("GET")
+	api.HandleFunc("/.well-known/llms.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		http.ServeFile(w, r, filepath.Join(s.config.App.StaticDir, "llms.txt"))
+	}).Methods("GET")
 
 	// Application routes
 	api.HandleFunc("/", s.makeHTTPHandlerFunc(handlers.HomeHandler)).Methods("GET")

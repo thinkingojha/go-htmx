@@ -8,8 +8,11 @@ import (
 )
 
 type ProductsPageData struct {
-	PageName string
-	Title    string
+	PageName     string
+	Title        string
+	Description  string
+	CanonicalURL string
+	OgImage      string
 }
 
 func ProductHandler(w http.ResponseWriter, r *http.Request) error {
@@ -22,8 +25,10 @@ func ProductHandler(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	data := ProductsPageData{
-		PageName: "products",
-		Title:    "products",
+		PageName:     "products",
+		Title:        "Products",
+		Description:  "Discover products and projects built by Ankush Ojha, AI Platform Engineer.",
+		CanonicalURL: "https://ankush.fyi/products",
 	}
 	if err := templates.ExecuteTemplate(w, "products", data); err != nil {
 		return err

@@ -89,6 +89,9 @@ type BlogDataYAML struct {
 
 type BlogPageData struct {
 	BlogData
+	PageName         string
+	CanonicalURL     string
+	OgImage          string
 	Post             *BlogPost
 	CurrentPage      int
 	TotalPages       int
@@ -99,8 +102,6 @@ type BlogPageData struct {
 	RecentPosts      []BlogPost
 	RelatedPosts     []BlogPost
 	AllTags          []string
-	PageName         string
-	Title            string
 }
 
 // Main blog listing handler
@@ -149,6 +150,8 @@ func WritingsHandler(w http.ResponseWriter, r *http.Request) error {
 
 	pageData := BlogPageData{
 		BlogData:         *blogData,
+		PageName:         "writings",
+		CanonicalURL:     "https://ankush.fyi/writings",
 		CurrentPage:      page,
 		TotalPages:       totalPages,
 		PostsPerPage:     postsPerPage,
@@ -157,8 +160,6 @@ func WritingsHandler(w http.ResponseWriter, r *http.Request) error {
 		FeaturedPosts:    getFeaturedPosts(blogData.Posts),
 		RecentPosts:      getRecentPosts(blogData.Posts, 5),
 		AllTags:          getAllTags(blogData.Posts),
-		PageName:         "writings",
-		Title:            "writings",
 	}
 	pageData.Posts = paginatedPosts
 
@@ -203,10 +204,11 @@ func BlogPostHandler(w http.ResponseWriter, r *http.Request) error {
 
 	pageData := BlogPageData{
 		BlogData:     *blogData,
+		PageName:     "writings",
+		CanonicalURL: "https://ankush.fyi/writings/" + post.Slug,
+		OgImage:      post.Meta.OGImage,
 		Post:         post,
 		RelatedPosts: getRelatedPosts(blogData.Posts, *post, 3),
-		PageName:     "writings",
-		Title:        post.Title,
 	}
 
 	return templates.ExecuteTemplate(w, "blog", pageData)
@@ -249,6 +251,8 @@ func BlogFilterHandler(w http.ResponseWriter, r *http.Request) error {
 
 	pageData := BlogPageData{
 		BlogData:         *blogData,
+		PageName:         "writings",
+		CanonicalURL:     "https://ankush.fyi/writings",
 		CurrentPage:      page,
 		TotalPages:       totalPages,
 		PostsPerPage:     postsPerPage,

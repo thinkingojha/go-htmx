@@ -86,8 +86,11 @@ type SkillYAML struct {
 // AboutPageData embeds experience data and adds PageName for the base header template
 type AboutPageData struct {
 	ExperienceData
-	PageName string
-	Title    string
+	PageName     string
+	Title        string
+	Description  string
+	CanonicalURL string
+	OgImage      string
 }
 
 func ExpHandler(w http.ResponseWriter, r *http.Request) error {
@@ -104,7 +107,9 @@ func ExpHandler(w http.ResponseWriter, r *http.Request) error {
 	data := AboutPageData{
 		ExperienceData: expData,
 		PageName:       "about",
-		Title:          "about",
+		Title:          "About / Resume",
+		Description:    "Professional background and experience of Ankush Ojha, an AI Platform Engineer who builds scalable microservices and ML infrastructure.",
+		CanonicalURL:   "https://ankush.fyi/about",
 	}
 
 	if err = templates.ExecuteTemplate(w, "about", data); err != nil {
